@@ -32,7 +32,7 @@ def test_clip():
         assert clipped_inverted.mask.any()
         assert not clipped_inverted.mask.all()
         # compare results
-        assert (clipped+clipped_inverted).mask.all()
+        assert (clipped + clipped_inverted).mask.all()
         # using empty Geometries
         geoms = [dict(geometry=Point())]
         clipped = tile_process.clip(test_array, geoms)
@@ -59,22 +59,44 @@ def test_clip():
 
 def test_contours():
     """Extract contours from array."""
-    mp = mapchete.open(
-        os.path.join(SCRIPTDIR, "testdata/cleantopo_tl.mapchete"))
-    tile = mp.get_process_tiles(zoom=4).next()
-    tile_process = MapcheteProcess(tile, params=mp.config.at_zoom(4))
-    with tile_process.open("file1") as dem:
-        contours = tile_process.contours(dem.read())
-        assert contours
-        assert isinstance(contours, list)
-        # no contours
-        contours = tile_process.contours(dem.read(), interval=10000)
-        assert isinstance(contours, list)
-        assert not contours
-        # base bigger than values
-        contours = tile_process.contours(dem.read(), base=10000)
-        assert isinstance(contours, list)
-        assert contours
+    with mapchete.open(
+        os.path.join(SCRIPTDIR, "testdata/cleantopo_tl.mapchete")
+    ) as mp:
+        tile = mp.get_process_tiles(zoom=4).next()
+        tile_process = MapcheteProcess(tile, params=mp.config.at_zoom(4))
+        with tile_process.open("file1") as dem:
+            # old contours
+            contours = tile_process.contours(dem.read())
+            assert contours
+            assert isinstance(contours, list)
+
+    with mapchete.open(
+        os.path.join(SCRIPTDIR, "testdata/cleantopo_tl.mapchete")
+    ) as mp:
+        tile = mp.get_process_tiles(zoom=4).next()
+        tile_process = MapcheteProcess(tile, params=mp.config.at_zoom(4))
+        with tile_process.open("file1") as dem:
+
+            # rio contours
+            rio_contours = tile_process.rio_contours(dem.read())
+            assert rio_contours
+            assert isinstance(rio_contours, list)
+            for contour in rio_contours:
+                geom = contour["geometry"]
+                print geom
+                print tile.bbox
+
+            assert len(contours) == len(rio_contours)
+
+            # # no contours
+            # contours = tile_process.contours(dem.read(), interval=10000)
+            # assert isinstance(contours, list)
+            # assert not contours
+            # # base bigger than values
+            # contours = tile_process.contours(dem.read(), base=10000)
+            # assert isinstance(contours, list)
+            # assert contours
+            # # rio contours
 
 
 def test_hillshade():

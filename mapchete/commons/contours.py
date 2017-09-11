@@ -1,10 +1,58 @@
 """Contour line extraction using matplotlib."""
 
+from shapely.geometry import LineString, mapping, shape
+import numpy as np
+import numpy.ma as ma
+from rasterio import features
+
 import matplotlib
 # Must be called before pyplot otherwise Travis fails
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from shapely.geometry import LineString, mapping
+
+
+def rio_contours(array, tile, interval=100, field='elev', base=0):
+    """
+    Extract contour lines from an array.
+
+    Parameters
+    ----------
+    array : array
+        input elevation data
+    tile : Tile
+        tile covering the array
+    interval : integer
+        elevation value interval when drawing contour lines
+    field : string
+        output field name containing elevation value
+    base : integer
+        elevation base value the intervals are computed from
+
+    Returns
+    -------
+    contours : iterable
+        contours as GeoJSON-like pairs of properties and geometry
+    """
+    levels = _get_contour_values(
+        array.min(), array.max(), interval=interval, base=base
+    )
+    if not levels:
+        return []
+    out_contours = []
+    for level in levels:
+        # print "level:", level
+        for i, (geom, value) in enumerate(features.shapes(
+            np.where(array >= level, 1, 0).astype("uint8"),
+            mask=array.mask if isinstance(array, ma.MaskedArray) else None,
+            transform=tile.affine
+        )):
+            # print geom["type"], "value:", value
+            if geom["type"] == "Polygon":
+                out_contours.append(
+                    {"geometry": shape(geom), field: level}
+                )
+        # print i, "features"
+    return out_contours
 
 
 def extract_contours(array, tile, interval=100, field='elev', base=0):

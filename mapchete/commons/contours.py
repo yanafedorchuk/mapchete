@@ -40,18 +40,20 @@ def rio_contours(array, tile, interval=100, field='elev', base=0):
         return []
     out_contours = []
     for level in levels:
-        # print "level:", level
         for i, (geom, value) in enumerate(features.shapes(
             np.where(array >= level, 1, 0).astype("uint8"),
-            mask=array.mask if isinstance(array, ma.MaskedArray) else None,
+            # mask=array.mask if isinstance(array, ma.MaskedArray) else None,
             transform=tile.affine
         )):
-            # print geom["type"], "value:", value
-            if geom["type"] == "Polygon":
+            s_geom = shape(geom).buffer(0)
+            if s_geom.is_valid and s_geom.geom_type == "Polygon" and value == 1:
                 out_contours.append(
-                    {"geometry": shape(geom), field: level}
+                    {"geometry": s_geom.exterior, field: level}
                 )
-        # print i, "features"
+                out_contours.extend([
+                    {"geometry": hole, field: level}
+                    for hole in s_geom.interiors
+                ])
     return out_contours
 
 

@@ -5,6 +5,7 @@ import os
 import numpy as np
 import numpy.ma as ma
 from shapely.geometry import Point, GeometryCollection
+from shapely.geometry import shape
 
 import mapchete
 from mapchete import MapcheteProcess
@@ -69,6 +70,8 @@ def test_contours():
             contours = tile_process.contours(dem.read())
             assert contours
             assert isinstance(contours, list)
+            for contour in contours:
+                assert shape(contour["geometry"]).is_valid
 
     with mapchete.open(
         os.path.join(SCRIPTDIR, "testdata/cleantopo_tl.mapchete")
@@ -82,9 +85,8 @@ def test_contours():
             assert rio_contours
             assert isinstance(rio_contours, list)
             for contour in rio_contours:
-                geom = contour["geometry"]
-                print geom
-                print tile.bbox
+                # print contour["geometry"]
+                assert contour["geometry"].is_valid
 
             assert len(contours) == len(rio_contours)
 

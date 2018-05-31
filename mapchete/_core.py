@@ -1,17 +1,15 @@
 """Main module managing processes."""
 
 from cachetools import LRUCache
-from functools import partial
+import concurrent.futures
 import inspect
 from itertools import chain, product
 import logging
 from multiprocessing import cpu_count, current_process
-from multiprocessing.pool import Pool
 import numpy as np
 import numpy.ma as ma
 import os
 from shapely.geometry import shape
-import signal
 import six
 import threading
 from tilematrix import TilePyramid
@@ -848,31 +846,17 @@ def _run_with_multiprocessing(process, zoom_levels, multi, max_chunksize):
     logger.debug("run with multiprocessing")
     num_processed = 0
     total_tiles = process.count_tiles(min(zoom_levels), max(zoom_levels))
-    logger.debug(
-        "run process on %s tiles using %s workers", total_tiles, multi)
-    f = partial(_process_worker, process)
-    for zoom in zoom_levels:
-        pool = Pool(multi, _worker_sigint_handler)
-        try:
-            for tile, message in pool.imap_unordered(
-                f,
-                process.get_process_tiles(zoom),
-                # set chunksize to between 1 and max_chunksize
-                chunksize=max_chunksize
-            ):
+    logger.debug("run process on %s tiles using %s workers", total_tiles, multi)
+    with concurrent.futures.ProcessPoolExecutor(max_workers=multi) as executor:
+        for zoom in zoom_levels:
+            for task in concurrent.futures.as_completed((
+                executor.submit(_process_worker, process, process_tile)
+                for process_tile in process.get_process_tiles(zoom)
+            )):
                 num_processed += 1
+                tile, message = task.result()
                 logger.debug("tile %s/%s finished", num_processed, total_tiles)
                 yield dict(process_tile=tile, **message)
-        except KeyboardInterrupt:
-            logger.error("Caught KeyboardInterrupt, terminating workers")
-            pool.terminate()
-            raise
-        except Exception:
-            pool.terminate()
-            raise
-        finally:
-            pool.close()
-            pool.join()
     logger.debug("%s tile(s) iterated", (str(num_processed)))
 
 
@@ -928,8 +912,3 @@ def _process_worker(process, process_tile):
         return process_tile, dict(
             process=processor_message,
             write=writer_message)
-
-
-def _worker_sigint_handler():
-    # ignore SIGINT and let everything be handled by parent process
-    signal.signal(signal.SIGINT, signal.SIG_IGN)

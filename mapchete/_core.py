@@ -313,8 +313,10 @@ class Mapchete(object):
         if self.config.mode not in ["continue", "overwrite"]:
             raise ValueError("cannot write output in current process mode")
 
-        if self.config.mode == "continue" and (
-            self.config.output.tiles_exist(process_tile)
+        if (
+            self.config.mode == "continue" and
+            self.config.output.tiles_exist(process_tile) and
+            _is_baselevel(config=self.config, zoom=process_tile.zoom)
         ):
             message = "output exists, not overwritten"
             logger.debug((process_tile.id, message))
@@ -338,7 +340,7 @@ class Mapchete(object):
         else:
             with Timer() as t:
                 self.config.output.write(process_tile=process_tile, data=data)
-            message = "output written in %s" % t.interval
+            message = "output written in %s" % t.elapsed
             logger.debug((process_tile.id, message))
             return ProcessInfo(
                 tile=process_tile,
@@ -523,7 +525,7 @@ class Mapchete(object):
         except Exception as e:
             # Log process time
             logger.exception(
-                (process_tile.id, "exception in user process", e, t.interval)
+                (process_tile.id, "exception in user process", e, t.elapsed)
             )
             new = MapcheteProcessException(format_exc())
             new.old = e
@@ -592,8 +594,8 @@ class Mapchete(object):
                     resampling=self.config.baselevels["lower"],
                     nodataval=self.config.output.nodata
                 )
-            logger.debug((tile.id, "generated from baselevel", t))
-            return process_data
+        logger.debug((tile.id, "generated from baselevel", t.elapsed))
+        return process_data
 
     def __enter__(self):
         """Enable context manager."""
@@ -954,7 +956,8 @@ def _process_worker(process, process_tile):
     # skip execution if overwrite is disabled and tile exists
     if (
         process.config.mode == "continue" and
-        process.config.output.tiles_exist(process_tile)
+        process.config.output.tiles_exist(process_tile) and
+        _is_baselevel(config=process.config, zoom=process_tile.zoom)
     ):
         logger.debug((process_tile.id, "tile exists, skipping"))
         return ProcessInfo(
@@ -982,6 +985,12 @@ def _process_worker(process, process_tile):
             written=writer_info.written,
             write_msg=writer_info.write_msg
         )
+
+
+def _is_baselevel(config=None, zoom=None):
+    is_baselevel = config.baselevels and zoom in config.baselevels["zooms"]
+    logger.debug("%s is baselevel: %s" % (zoom, is_baselevel))
+    return is_baselevel
 
 
 def _worker_sigint_handler():

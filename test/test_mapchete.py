@@ -242,6 +242,38 @@ def test_baselevels_buffer_antimeridian(mp_tmpdir, baselevels):
         assert np.where(lower_tile != 10, True, False).all()
 
 
+def test_baselevels_overwrite(mp_tmpdir, baselevels):
+    with mapchete.open(
+        dict(baselevels.dict, baselevels=dict(min=7)),
+        mode="continue"
+    ) as mp:
+        process_tiles = mp.get_process_tiles(7)
+        # process first tile
+        tile = next(process_tiles)
+        process_info = mapchete._core._process_worker(mp, tile)
+        assert process_info.written
+        # interpolate from baselevel
+        process_info = mapchete._core._process_worker(mp, tile.get_parent())
+        assert process_info.written
+        # read written output
+        overview_first_tile = mp.config.output.read(tile.get_parent())
+        assert overview_first_tile.any()
+
+        # process next tile
+        tile = next(process_tiles)
+        process_info = mapchete._core._process_worker(mp, tile)
+        assert process_info.written
+        # interpolate from baselevel
+        process_info = mapchete._core._process_worker(mp, tile.get_parent())
+        assert process_info.written
+        # read written output
+        overview_both_tiles = mp.config.output.read(tile.get_parent())
+        assert overview_both_tiles.any()
+
+        # make sure interpolated overview was updated
+        assert not np.array_equal(overview_first_tile, overview_both_tiles)
+
+
 def test_processing(mp_tmpdir, cleantopo_br, cleantopo_tl):
     """Test correct processing (read and write) outputs."""
     for cleantopo_process in [cleantopo_br.path, cleantopo_tl.path]:

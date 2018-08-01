@@ -70,9 +70,15 @@ def open(
     """
     return Mapchete(
         MapcheteConfig(
-            config, mode=mode, zoom=zoom, bounds=bounds,
-            single_input_file=single_input_file, debug=debug),
-        with_cache=with_cache)
+            config,
+            mode=mode,
+            zoom=zoom,
+            bounds=bounds,
+            single_input_file=single_input_file,
+            debug=debug
+        ),
+        with_cache=with_cache
+    )
 
 
 ProcessInfo = namedtuple('ProcessInfo', 'tile processed process_msg written write_msg')
@@ -114,8 +120,7 @@ class Mapchete(object):
         if not isinstance(config, MapcheteConfig):
             raise TypeError("config must be MapcheteConfig object")
         self.config = config
-        self.process_name = os.path.splitext(
-            os.path.basename(self.config.process_file))[0]
+        self.process_name = os.path.splitext(os.path.basename(self.config.process_file))[0]
         self.with_cache = True if self.config.mode == "memory" else with_cache
         if self.with_cache:
             self.process_tile_cache = LRUCache(maxsize=512)
@@ -235,7 +240,8 @@ class Mapchete(object):
         if (minzoom, maxzoom) not in self._count_tiles_cache:
             self._count_tiles_cache[(minzoom, maxzoom)] = count_tiles(
                 self.config.area_at_zoom(), self.config.process_pyramid,
-                minzoom, maxzoom, init_zoom=0)
+                minzoom, maxzoom, init_zoom=0
+            )
         return self._count_tiles_cache[(minzoom, maxzoom)]
 
     def execute(self, process_tile, raise_nodata=False):
@@ -379,9 +385,7 @@ class Mapchete(object):
 
         # TODO implement reprojection
         if tile.crs != self.config.process_pyramid.crs:
-            raise NotImplementedError(
-                "reprojection between processes not yet implemented"
-            )
+            raise NotImplementedError("reprojection between processes not yet implemented")
 
         if self.config.mode == "memory":
             # Determine affected process Tile and check whether it is already
@@ -464,8 +468,7 @@ class Mapchete(object):
                     return self.process_tile_cache[process_tile.id]
                 finally:
                     with self.process_lock:
-                        process_event = self.current_processes.get(
-                            process_tile.id)
+                        process_event = self.current_processes.get(process_tile.id)
                         del self.current_processes[process_tile.id]
                         process_event.set()
 
@@ -522,9 +525,7 @@ class Mapchete(object):
                     )
         except Exception as e:
             # Log process time
-            logger.exception(
-                (process_tile.id, "exception in user process", e, t.elapsed)
-            )
+            logger.exception((process_tile.id, "exception in user process", e, t.elapsed))
             new = MapcheteProcessException(format_exc())
             new.old = e
             raise new
@@ -660,7 +661,8 @@ class MapcheteProcess(object):
     def write(self, data, **kwargs):
         """Deprecated."""
         raise DeprecationWarning(
-            "Please return process output data instead of using self.write().")
+            "Please return process output data instead of using self.write()."
+        )
 
     def read(self, **kwargs):
         """
@@ -736,8 +738,7 @@ class MapcheteProcess(object):
         -------
         hillshade : array
         """
-        return commons_hillshade.hillshade(
-            elevation, self, azimuth, altitude, z, scale)
+        return commons_hillshade.hillshade(elevation, self, azimuth, altitude, z, scale)
 
     def contours(
         self, elevation, interval=100, field='elev', base=0
@@ -762,7 +763,8 @@ class MapcheteProcess(object):
             contours as GeoJSON-like pairs of properties and geometry
         """
         return commons_contours.extract_contours(
-            elevation, self.tile, interval=interval, field=field, base=base)
+            elevation, self.tile, interval=interval, field=field, base=base
+        )
 
     def clip(
         self, array, geometries, inverted=False, clip_buffer=0
@@ -786,8 +788,9 @@ class MapcheteProcess(object):
         clipped array : array
         """
         return commons_clip.clip_array_with_vector(
-            array, self.tile.affine, geometries,
-            inverted=inverted, clip_buffer=clip_buffer*self.tile.pixel_x_size)
+            array, self.tile.affine, geometries, inverted=inverted,
+            clip_buffer=clip_buffer*self.tile.pixel_x_size
+        )
 
 
 class Timer:

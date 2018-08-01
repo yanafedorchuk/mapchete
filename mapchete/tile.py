@@ -31,10 +31,10 @@ class BufferedTilePyramid(TilePyramid):
         self, pyramid_type, metatiling=1, tile_size=256, pixelbuffer=0
     ):
         """Initialize."""
-        TilePyramid.__init__(
-            self, pyramid_type, metatiling=metatiling, tile_size=tile_size)
+        TilePyramid.__init__(self, pyramid_type, metatiling=metatiling, tile_size=tile_size)
         self.tile_pyramid = TilePyramid(
-            pyramid_type, metatiling=metatiling, tile_size=tile_size)
+            pyramid_type, metatiling=metatiling, tile_size=tile_size
+        )
         self.metatiling = metatiling
         if isinstance(pixelbuffer, int) and pixelbuffer >= 0:
             self.pixelbuffer = pixelbuffer
@@ -129,7 +129,8 @@ class BufferedTilePyramid(TilePyramid):
         """
         return [
             self.tile(*intersecting_tile.id)
-            for intersecting_tile in self.tile_pyramid.intersecting(tile)]
+            for intersecting_tile in self.tile_pyramid.intersecting(tile)
+        ]
 
 
 class BufferedTile(Tile):
@@ -177,7 +178,8 @@ class BufferedTile(Tile):
             width=self.width,
             height=self.height,
             transform=None,
-            affine=self.affine)
+            affine=self.affine
+        )
 
     @cached_property
     def height(self):
@@ -218,9 +220,7 @@ class BufferedTile(Tile):
         children : list
             a list of ``BufferedTiles``
         """
-        return [
-            BufferedTile(tile, self.pixelbuffer)
-            for tile in self._tile.get_children()]
+        return [BufferedTile(tile, self.pixelbuffer) for tile in self._tile.get_children()]
 
     def get_parent(self):
         """
@@ -231,3 +231,12 @@ class BufferedTile(Tile):
         parent : ``BufferedTile``
         """
         return BufferedTile(self._tile.get_parent(), self.pixelbuffer)
+
+    def is_on_edge(self):
+        """Determine whether tile touches or goes over pyramid edge."""
+        return (
+            self.left <= self.tile_pyramid.left or      # touches_left
+            self.bottom <= self.tile_pyramid.bottom or  # touches_bottom
+            self.right >= self.tile_pyramid.right or    # touches_right
+            self.top >= self.tile_pyramid.top           # touches_top
+        )

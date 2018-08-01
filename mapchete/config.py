@@ -168,17 +168,20 @@ class MapcheteConfig(object):
             # process tiles
             if output_metatiling > process_metatiling:
                 raise ValueError(
-                    "output metatiles must be smaller than process metatiles")
+                    "output metatiles must be smaller than process metatiles"
+                )
             # these two BufferedTilePyramid instances will help us with all
             # the tile geometries etc.
             self.process_pyramid = BufferedTilePyramid(
                 self._raw["pyramid"]["grid"],
                 metatiling=process_metatiling,
-                pixelbuffer=self._raw["pyramid"].get("pixelbuffer", 0))
+                pixelbuffer=self._raw["pyramid"].get("pixelbuffer", 0)
+            )
             self.output_pyramid = BufferedTilePyramid(
                 self._raw["pyramid"]["grid"],
                 metatiling=output_metatiling,
-                pixelbuffer=self._raw["output"].get("pixelbuffer", 0))
+                pixelbuffer=self._raw["output"].get("pixelbuffer", 0)
+            )
         except Exception as e:
             logger.exception(e)
             raise MapcheteConfigError(e)
@@ -253,10 +256,10 @@ class MapcheteConfig(object):
         return snap_bounds(
             bounds=clip_bounds(bounds=self.init_bounds, clip=self.process_pyramid.bounds),
             pyramid=self.process_pyramid,
-            zoom=min(
-                self.baselevels["zooms"]
-            ) if self.baselevels else min(
-                self.init_zoom_levels
+            zoom=(
+                min(self.baselevels["zooms"])
+                if self.baselevels else
+                min(self.init_zoom_levels)
             )
         )
 
@@ -266,18 +269,23 @@ class MapcheteConfig(object):
         output_params = self._raw["output"]
         if "path" in output_params:
             output_params.update(
-                path=os.path.normpath(
-                    os.path.join(self.config_dir, output_params["path"])))
+                path=os.path.normpath(os.path.join(
+                    self.config_dir, output_params["path"])
+                )
+            )
         output_params.update(
             type=self.output_pyramid.grid,
             pixelbuffer=self.output_pyramid.pixelbuffer,
-            metatiling=self.output_pyramid.metatiling)
+            metatiling=self.output_pyramid.metatiling
+        )
         if "format" not in output_params:
             raise MapcheteConfigError("output format not specified")
         if output_params["format"] not in available_output_formats():
             raise MapcheteConfigError(
                 "format %s not available in %s" % (
-                    output_params["format"], str(available_output_formats())))
+                    output_params["format"], str(available_output_formats())
+                )
+            )
         writer = load_output_writer(output_params)
         try:
             writer.is_valid_with_config(output_params)
@@ -285,7 +293,9 @@ class MapcheteConfig(object):
             logger.exception(e)
             raise MapcheteConfigError(
                 "driver %s not compatible with configuration: %s" % (
-                    writer.METADATA["driver_name"], e))
+                    writer.METADATA["driver_name"], e
+                )
+            )
         return writer
 
     @cached_property
@@ -327,28 +337,28 @@ class MapcheteConfig(object):
                             path=deepcopy(path), pyramid=self.process_pyramid,
                             pixelbuffer=self.process_pyramid.pixelbuffer,
                             delimiters=delimiters
-                        ), self.mode == "readonly")
+                        ), self.mode == "readonly"
+                    )
                 except Exception as e:
                     logger.exception(e)
                     raise MapcheteDriverError(e)
-                logger.debug(
-                    "input reader for file %s is %s", v, reader)
+                logger.debug("input reader for file %s is %s", v, reader)
             # for abstract inputs
             elif isinstance(v, dict):
-                logger.debug(
-                    "load input reader for abstract input %s", v)
+                logger.debug("load input reader for abstract input %s", v)
                 try:
                     reader = load_input_reader(
                         dict(
                             abstract=deepcopy(v), pyramid=self.process_pyramid,
                             pixelbuffer=self.process_pyramid.pixelbuffer,
                             delimiters=delimiters, conf_dir=self.config_dir
-                        ), self.mode == "readonly")
+                        ),
+                        self.mode == "readonly"
+                    )
                 except Exception as e:
                     logger.exception(e)
                     raise MapcheteDriverError(e)
-                logger.debug(
-                    "input reader for abstract input %s is %s", v, reader)
+                logger.debug("input reader for abstract input %s is %s", v, reader)
             else:
                 raise MapcheteConfigError("invalid input type %s", type(v))
             # trigger bbox creation
@@ -391,7 +401,8 @@ class MapcheteConfig(object):
             tile_pyramid=BufferedTilePyramid(
                 self.output_pyramid.grid,
                 pixelbuffer=self.output_pyramid.pixelbuffer,
-                metatiling=self.process_pyramid.metatiling)
+                metatiling=self.process_pyramid.metatiling
+            )
         )
 
     @cached_property
@@ -404,7 +415,8 @@ class MapcheteConfig(object):
             if hasattr(user_process_py, "Process"):
                 logger.error(
                     """instanciating MapcheteProcess is deprecated, """
-                    """provide execute() function instead""")
+                    """provide execute() function instead"""
+                )
             if hasattr(user_process_py, "execute"):
                 user_execute = user_process_py.execute
                 if len(inspect.getargspec(user_execute).args) == 0:
@@ -413,9 +425,7 @@ class MapcheteConfig(object):
                     )
                 return user_execute
             else:
-                raise ImportError(
-                    "No execute() function found in %s" % self.process_file
-                )
+                raise ImportError("No execute() function found in %s" % self.process_file)
         except ImportError as e:
             raise MapcheteProcessImportError(e)
 
@@ -601,8 +611,7 @@ def get_zoom_levels(process_zoom_levels=None, init_zoom_levels=None):
     else:
         init_zoom_levels = _validate_zooms(init_zoom_levels)
         if not set(init_zoom_levels).issubset(set(process_zoom_levels)):
-            raise MapcheteConfigError(
-                "init zooms must be a subset of process zoom")
+            raise MapcheteConfigError("init zooms must be a subset of process zoom")
         return init_zoom_levels
 
 
@@ -672,7 +681,8 @@ def _config_to_dict(input_config):
     # throw error if unknown object
     else:
         raise MapcheteConfigError(
-            "Configuration has to be a dictionary or a .mapchete file.")
+            "Configuration has to be a dictionary or a .mapchete file."
+        )
 
 
 def _validate_process_file(config):
@@ -705,8 +715,7 @@ def _validate_zooms(zooms):
         zmin = _validate_zoom(zooms["min"])
         zmax = _validate_zoom(zooms["max"])
         if zmin > zmax:
-            raise MapcheteConfigError(
-                "max zoom must not be smaller than min zoom")
+            raise MapcheteConfigError("max zoom must not be smaller than min zoom")
         return list(range(zmin, zmax + 1))
     elif isinstance(zooms, list):
         if len(zooms) == 1:
@@ -716,7 +725,8 @@ def _validate_zooms(zooms):
             return list(range(zmin, zmax + 1))
         else:
             raise MapcheteConfigError(
-                "when providing zooms as list, just min and max are allowed")
+                "when providing zooms as list, just min and max are allowed"
+            )
     else:
         return [_validate_zoom(zooms)]
 
@@ -729,11 +739,11 @@ def _validate_zoom(zoom):
 
 
 def _validate_bounds(bounds):
-    if any([
-        not isinstance(bounds, (list, tuple)),
-        len(bounds) != 4,
+    if (
+        not isinstance(bounds, (list, tuple)) or
+        len(bounds) != 4 or
         any([not isinstance(i, (int, float)) for i in bounds])
-    ]):
+    ):
         raise MapcheteConfigError("bounds not valid")
     return bounds
 
@@ -791,8 +801,10 @@ def _element_at_zoom(name, element, zoom):
         elif isinstance(name, six.string_types):
             if name.startswith("zoom"):
                 return _filter_by_zoom(
-                    conf_string=name.strip("zoom").strip(), zoom=zoom,
-                    element=element)
+                    conf_string=name.strip("zoom").strip(),
+                    zoom=zoom,
+                    element=element
+                )
             # If element is a string but not a zoom level statement, return
             # element.
             else:
@@ -871,11 +883,13 @@ def _map_to_new_config(config):
         config["pyramid"] = dict(
             grid=config["output"]["type"],
             metatiling=config.get("metatiling", 1),
-            pixelbuffer=config.get("pixelbuffer", 0))
+            pixelbuffer=config.get("pixelbuffer", 0)
+        )
     if "zoom_levels" not in config:
         warnings.warn(
             "use new config element 'zoom_levels' instead of 'process_zoom', "
-            "'process_minzoom' and 'process_maxzoom'")
+            "'process_minzoom' and 'process_maxzoom'"
+        )
         if "process_zoom" in config:
             config["zoom_levels"] = config["process_zoom"]
         elif all([
@@ -883,14 +897,15 @@ def _map_to_new_config(config):
         ]):
             config["zoom_levels"] = dict(
                 min=config["process_minzoom"],
-                max=config["process_maxzoom"])
+                max=config["process_maxzoom"]
+            )
         else:
-            raise MapcheteConfigError(
-                "process zoom levels not provided in config")
+            raise MapcheteConfigError("process zoom levels not provided in config")
     if "bounds" not in config:
         if "process_bounds" in config:
             warnings.warn(
-                "'process_bounds' are deprecated and renamed to 'bounds'")
+                "'process_bounds' are deprecated and renamed to 'bounds'"
+            )
             config["bounds"] = config["process_bounds"]
         else:
             config["bounds"] = None
@@ -903,5 +918,6 @@ def _map_to_new_config(config):
             raise MapcheteConfigError("no 'input' found")
     elif "input_files" in config:
         raise MapcheteConfigError(
-            "'input' and 'input_files' are not allowed at the same time")
+            "'input' and 'input_files' are not allowed at the same time"
+        )
     return config

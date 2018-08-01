@@ -24,9 +24,7 @@ from mapchete.io import path_is_remote
 logger = logging.getLogger(__name__)
 
 ReferencedRaster = namedtuple("ReferencedRaster", ("data", "affine"))
-GDAL_HTTP_OPTS = dict(
-    GDAL_DISABLE_READDIR_ON_OPEN=True,
-    GDAL_HTTP_TIMEOUT=30)
+GDAL_HTTP_OPTS = dict(GDAL_DISABLE_READDIR_ON_OPEN=True, GDAL_HTTP_TIMEOUT=30)
 
 
 def read_raster_window(
@@ -65,21 +63,20 @@ def read_raster_window(
     dst_shape = tile.shape
     user_opts = {} if gdal_opts is None else dict(**gdal_opts)
     if path_is_remote(input_file, s3=True):
-        gdal_opts = dict(**GDAL_HTTP_OPTS)
-        gdal_opts.update(**user_opts)
+        gdal_opts = dict(GDAL_HTTP_OPTS, **user_opts)
     else:
         gdal_opts = user_opts
 
     if not isinstance(indexes, int):
         if indexes is None:
-            dst_shape = (None,) + dst_shape
+            dst_shape = (None, ) + dst_shape
         elif len(indexes) == 1:
             indexes = indexes[0]
         else:
-            dst_shape = (len(indexes),) + dst_shape
+            dst_shape = (len(indexes), ) + dst_shape
     # Check if potentially tile boundaries exceed tile matrix boundaries on
     # the antimeridian, the northern or the southern boundary.
-    if tile.pixelbuffer and _is_on_edge(tile):
+    if tile.pixelbuffer and tile.is_on_edge():
         return _get_warped_edge_array(
             tile=tile, input_file=input_file, indexes=indexes,
             dst_shape=dst_shape, resampling=resampling, src_nodata=src_nodata,
@@ -101,7 +98,8 @@ def _get_warped_edge_array(
     src_nodata=None, dst_nodata=None, gdal_opts=None
 ):
     tile_boxes = clip_geometry_to_srs_bounds(
-        tile.bbox, tile.tile_pyramid, multipart=True)
+        tile.bbox, tile.tile_pyramid, multipart=True
+    )
     parts_metadata = dict(left=None, middle=None, right=None, none=None)
     # Split bounding box into multiple parts & request each numpy array
     # separately.
@@ -158,6 +156,8 @@ def _get_warped_array(
             if indexes is None:
                 dst_shape = (len(src.indexes), dst_shape[-2], dst_shape[-1], )
                 indexes = list(src.indexes)
+            width, height = dst_shape[-2:]
+            left, bottom, right, top = dst_bounds
             src_nodata = src.nodata if src_nodata is None else src_nodata
             dst_nodata = src.nodata if dst_nodata is None else dst_nodata
             with WarpedVRT(
@@ -165,13 +165,15 @@ def _get_warped_array(
                 src_nodata=src_nodata,
                 crs=dst_crs,
                 nodata=dst_nodata,
-                width=dst_shape[-2],
-                height=dst_shape[-1],
+                width=width,
+                height=height,
                 transform=Affine(
-                    (dst_bounds[2] - dst_bounds[0]) / dst_shape[-2],
-                    0, dst_bounds[0], 0,
-                    (dst_bounds[1] - dst_bounds[3]) / dst_shape[-1],
-                    dst_bounds[3]
+                    (right - left) / width,
+                    0,
+                    left,
+                    0,
+                    (bottom - top) / height,
+                    top
                 ),
                 resampling=Resampling[resampling]
             ) as vrt:
@@ -181,16 +183,6 @@ def _get_warped_array(
                     indexes=indexes,
                     masked=True
                 )
-
-
-def _is_on_edge(tile):
-    """Determine whether tile touches or goes over pyramid edge."""
-    return any([
-        tile.left <= tile.tile_pyramid.left,        # touches_left
-        tile.bottom <= tile.tile_pyramid.bottom,    # touches_bottom
-        tile.right >= tile.tile_pyramid.right,      # touches_right
-        tile.top >= tile.tile_pyramid.top           # touches_top
-    ])
 
 
 class RasterWindowMemoryFile():
@@ -206,7 +198,8 @@ class RasterWindowMemoryFile():
         self.data = extract_from_array(
             in_raster=in_data,
             in_affine=in_tile.affine,
-            out_tile=out_tile)
+            out_tile=out_tile
+        )
         # use transform instead of affine
         if "affine" in out_profile:
             out_profile["transform"] = out_profile.pop("affine")
@@ -257,7 +250,8 @@ def write_raster_window(
     window_data = extract_from_array(
         in_raster=in_data,
         in_affine=in_tile.affine,
-        out_tile=out_tile)
+        out_tile=out_tile
+    )
     # use transform instead of affine
     if "affine" in out_profile:
         out_profile["transform"] = out_profile.pop("affine")
@@ -320,14 +314,11 @@ def extract_from_array(in_raster=None, in_affine=None, out_tile=None):
         return in_raster[..., minrow:maxrow, mincol:maxcol]
     # raise error if output and input windows do overlap partially
     else:
-        raise ValueError(
-            "extraction fails if output shape is not within input"
-        )
+        raise ValueError("extraction fails if output shape is not within input")
 
 
 def resample_from_array(
-    in_raster=None, in_affine=None, out_tile=None, resampling="nearest",
-    nodataval=0
+    in_raster=None, in_affine=None, out_tile=None, resampling="nearest", nodataval=0
 ):
     """
     Extract and resample from array to target tile.
@@ -381,7 +372,8 @@ def resample_from_array(
     reproject(
         in_raster, dst_data, src_transform=in_affine, src_crs=out_tile.crs,
         dst_transform=out_tile.affine, dst_crs=out_tile.crs,
-        resampling=Resampling[resampling])
+        resampling=Resampling[resampling]
+    )
     return ma.MaskedArray(dst_data, mask=dst_data == nodataval)
 
 
@@ -443,8 +435,7 @@ def create_mosaic(tiles, nodata=0):
     width = int(round((m_right - m_left) / resolution))
     # initialize empty mosaic
     mosaic = ma.MaskedArray(
-        data=np.full(
-            (num_bands, height, width), dtype=dtype, fill_value=nodata),
+        data=np.full((num_bands, height, width), dtype=dtype, fill_value=nodata),
         mask=np.ones((num_bands, height, width))
     )
     # create Affine
@@ -467,9 +458,7 @@ def create_mosaic(tiles, nodata=0):
         mosaic.mask[:, minrow:maxrow, mincol:maxcol] = data.mask
     if shift:
         # shift back output mosaic
-        affine = Affine(
-            resolution, 0, m_left - pyramid.x_size / 2, 0, -resolution, m_top
-        )
+        affine = Affine(resolution, 0, m_left - pyramid.x_size / 2, 0, -resolution, m_top)
     return ReferencedRaster(data=mosaic, affine=affine)
 
 
@@ -595,19 +584,19 @@ def _prepare_iterable(data, masked, nodata, dtype):
         assert len(out_data) == len(out_mask)
         return ma.MaskedArray(
             data=np.stack(out_data).astype(dtype),
-            mask=np.stack(out_mask))
+            mask=np.stack(out_mask)
+        )
     else:
         return np.stack(out_data).astype(dtype)
 
 
 def _prepare_masked(data, masked, nodata, dtype):
-    try:
-        assert data.shape == data.mask.shape
+    if data.shape == data.mask.shape:
         if masked:
             return data.astype(dtype)
         else:
             return ma.filled(data, nodata).astype(dtype)
-    except AssertionError:
+    else:
         if masked:
             return ma.masked_values(data, nodata).astype(dtype)
         else:

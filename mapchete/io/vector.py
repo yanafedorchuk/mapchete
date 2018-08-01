@@ -7,7 +7,8 @@ from fiona.transform import transform_geom
 from rasterio.crs import CRS
 from shapely.geometry import (
     box, shape, mapping, MultiPoint, MultiLineString, MultiPolygon, Polygon,
-    LinearRing, LineString)
+    LinearRing, LineString
+)
 from shapely.errors import TopologicalError
 from shapely.validation import explain_validity
 import six
@@ -73,9 +74,7 @@ def reproject_geometry(
             return _repair(geometry)
         out_geom = _repair(
             to_shape(
-                transform_geom(
-                    src_crs.to_dict(), dst_crs.to_dict(), mapping(geometry)
-                )
+                transform_geom(src_crs.to_dict(), dst_crs.to_dict(), mapping(geometry))
             )
         )
         if validity_check and (not out_geom.is_valid or out_geom.is_empty):
@@ -101,9 +100,7 @@ def reproject_geometry(
         if error_on_clip and not geometry_4326.within(crs_bbox):
             raise RuntimeError("geometry outside target CRS bounds")
         # clip geometry dst_crs boundaries and return
-        return _reproject_geom(
-            crs_bbox.intersection(geometry_4326), wgs84_crs, dst_crs
-        )
+        return _reproject_geom(crs_bbox.intersection(geometry_4326), wgs84_crs, dst_crs)
 
     # return without clipping if destination CRS does not have defined bounds
     else:
@@ -173,15 +170,7 @@ def read_vector_window(input_file, tile, validity_check=True):
     features : list
       a list of reprojected GeoJSON-like features
     """
-    # Check if potentially tile boundaries exceed tile matrix boundaries on
-    # the antimeridian, the northern or the southern boundary.
-    tile_left, tile_bottom, tile_right, tile_top = tile.bounds
-    touches_left = tile_left <= tile.tile_pyramid.left
-    touches_bottom = tile_bottom <= tile.tile_pyramid.bottom
-    touches_right = tile_right >= tile.tile_pyramid.right
-    touches_top = tile_top >= tile.tile_pyramid.top
-    is_on_edge = touches_left or touches_bottom or touches_right or touches_top
-    if tile.pixelbuffer and is_on_edge:
+    if tile.pixelbuffer and tile.is_on_edge():
         tile_boxes = clip_geometry_to_srs_bounds(
             tile.bbox, tile.tile_pyramid, multipart=True
         )
@@ -288,7 +277,8 @@ def _get_reprojected_features(
                     logger.exception("feature omitted: reprojection failed")
                 yield {
                     'properties': feature['properties'],
-                    'geometry': mapping(geom)}
+                    'geometry': mapping(geom)
+                }
             else:
                 logger.exception(
                     "feature omitted: geometry type changed after reprojection"
@@ -323,7 +313,8 @@ def clean_geometry_type(geometry, target_type, allow_multipart=True):
         "Polygon": MultiPolygon,
         "MultiPoint": MultiPoint,
         "MultiLineString": MultiLineString,
-        "MultiPolygon": MultiPolygon}
+        "MultiPolygon": MultiPolygon
+    }
 
     if target_type not in multipart_geoms.keys():
         raise TypeError("target type is not supported: %s" % target_type)
@@ -336,7 +327,8 @@ def clean_geometry_type(geometry, target_type, allow_multipart=True):
         if geometry.geom_type == "GeometryCollection":
             return target_multipart_type([
                 clean_geometry_type(g, target_type, allow_multipart)
-                for g in geometry])
+                for g in geometry
+            ])
         elif any([
             isinstance(geometry, target_multipart_type),
             multipart_geoms[geometry.geom_type] == target_multipart_type

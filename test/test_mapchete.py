@@ -18,6 +18,7 @@ from shapely.geometry import shape
 from shapely.ops import unary_union
 
 import mapchete
+from mapchete.config import MapcheteConfig
 from mapchete.io.raster import create_mosaic
 from mapchete.errors import MapcheteProcessOutputError
 from mapchete.tile import BufferedTilePyramid
@@ -415,3 +416,11 @@ def test_snap_bounds_errors():
         mapchete.config.snap_bounds(bounds=(0, 1, ))
     with pytest.raises(TypeError):
         mapchete.config.snap_bounds(bounds=bounds, pyramid="invalid")
+
+
+def test_process_iterator(cleantopo_br):
+    with MapcheteConfig(cleantopo_br.path) as config:
+        mp = mapchete.open(config, keep_config=True)
+    # with mapchete.open(cleantopo_br.path) as mp:
+    #     pass
+    # mp = mapchete.open(cleantopo_br.path)

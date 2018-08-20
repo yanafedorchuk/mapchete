@@ -33,8 +33,14 @@ logger = logging.getLogger(__name__)
 
 
 def open(
-    config, mode="continue", zoom=None, bounds=None, single_input_file=None,
-    with_cache=False, debug=False
+    config,
+    mode="continue",
+    zoom=None,
+    bounds=None,
+    single_input_file=None,
+    with_cache=False,
+    debug=False,
+    keep_config=False
 ):
     """
     Open a Mapchete process.
@@ -66,8 +72,11 @@ def open(
     return Mapchete(
         MapcheteConfig(
             config, mode=mode, zoom=zoom, bounds=bounds,
-            single_input_file=single_input_file, debug=debug),
-        with_cache=with_cache)
+            single_input_file=single_input_file, debug=debug
+        ),
+        with_cache=with_cache,
+        keep_config=keep_config
+    )
 
 
 ProcessInfo = namedtuple('ProcessInfo', 'tile processed process_msg written write_msg')
@@ -94,7 +103,7 @@ class Mapchete(object):
         process output data cached in memory
     """
 
-    def __init__(self, config, with_cache=False):
+    def __init__(self, config, with_cache=False, mode=None, keep_config=False):
         """
         Initialize Mapchete processing endpoint.
 
@@ -109,8 +118,12 @@ class Mapchete(object):
         if not isinstance(config, MapcheteConfig):
             raise TypeError("config must be MapcheteConfig object")
         self.config = config
+        self.keep_config = keep_config
+        if mode not in [None, "memory", "continue", "readonly", "overwrite"]:
+            raise ValueError("unknown mode %s" % mode)
+        self.mode = mode if mode else self.config.mode
         self.process_name = self.config.process_name
-        self.with_cache = True if self.config.mode == "memory" else with_cache
+        self.with_cache = True if self.mode == "memory" else with_cache
         if self.with_cache:
             self.process_tile_cache = LRUCache(maxsize=512)
             self.current_processes = {}
@@ -250,7 +263,7 @@ class Mapchete(object):
         data : NumPy array or features
             process output
         """
-        if self.config.mode not in ["memory", "continue", "overwrite"]:
+        if self.mode not in ["memory", "continue", "overwrite"]:
             raise ValueError("process mode must be memory, continue or overwrite")
         if isinstance(process_tile, tuple):
             process_tile = self.config.process_pyramid.tile(*process_tile)
@@ -279,7 +292,7 @@ class Mapchete(object):
         data : NumPy array or features
             process output
         """
-        if self.config.mode not in ["readonly", "continue", "overwrite"]:
+        if self.mode not in ["readonly", "continue", "overwrite"]:
             raise ValueError("process mode must be readonly, continue or overwrite")
         if isinstance(output_tile, tuple):
             output_tile = self.config.output_pyramid.tile(*output_tile)
@@ -305,10 +318,10 @@ class Mapchete(object):
             process_tile = self.config.process_pyramid.tile(*process_tile)
         elif not isinstance(process_tile, BufferedTile):
             raise ValueError("invalid process_tile type: %s" % type(process_tile))
-        if self.config.mode not in ["continue", "overwrite"]:
+        if self.mode not in ["continue", "overwrite"]:
             raise ValueError("cannot write output in current process mode")
 
-        if self.config.mode == "continue" and (
+        if self.mode == "continue" and (
             self.config.output.tiles_exist(process_tile)
         ):
             message = "output exists, not overwritten"
@@ -378,7 +391,7 @@ class Mapchete(object):
                 "reprojection between processes not yet implemented"
             )
 
-        if self.config.mode == "memory":
+        if self.mode == "memory":
             # Determine affected process Tile and check whether it is already
             # cached.
             process_tile = self.config.process_pyramid.intersecting(tile)[0]
@@ -399,17 +412,17 @@ class Mapchete(object):
         else:
             output_tiles = self.config.output_pyramid.intersecting(tile)
 
-        if self.config.mode == "readonly" or _baselevel_readonly:
+        if self.mode == "readonly" or _baselevel_readonly:
             if self.config.output.tiles_exist(process_tile):
                 return self._read_existing_output(tile, output_tiles)
             else:
                 return self.config.output.empty(tile)
-        elif self.config.mode == "continue" and not _baselevel_readonly:
+        elif self.mode == "continue" and not _baselevel_readonly:
             if self.config.output.tiles_exist(process_tile):
                 return self._read_existing_output(tile, output_tiles)
             else:
                 return self._process_and_overwrite_output(tile, process_tile)
-        elif self.config.mode == "overwrite" and not _baselevel_readonly:
+        elif self.mode == "overwrite" and not _baselevel_readonly:
             return self._process_and_overwrite_output(tile, process_tile)
 
     def _process_and_overwrite_output(self, tile, process_tile):
@@ -454,7 +467,7 @@ class Mapchete(object):
                 try:
                     output = self.execute(process_tile)
                     self.process_tile_cache[process_tile.id] = output
-                    if self.config.mode in ["continue", "overwrite"]:
+                    if self.mode in ["continue", "overwrite"]:
                         self.write(process_tile, output)
                     return self.process_tile_cache[process_tile.id]
                 finally:
@@ -594,9 +607,9 @@ class Mapchete(object):
 
     def __exit__(self, t, v, tb):
         """Cleanup on close."""
-        for ip in self.config.input.values():
-            if ip is not None:
-                ip.cleanup()
+        if not self.keep_config:
+            self.config.close()
+        self.config.__exit__(None, None, None)
         if self.with_cache:
             self.process_tile_cache = None
             self.current_processes = None

@@ -509,6 +509,20 @@ class MapcheteConfig(object):
         return () if self.area_at_zoom(zoom).is_empty else Bounds(
             *self.area_at_zoom(zoom).bounds)
 
+    def close(self):
+        """Cleanup everything."""
+        for ip in self.input.values():
+            if ip is not None:
+                ip.cleanup()
+
+    def __enter__(self):
+        """Enable context manager."""
+        return self
+
+    def __exit__(self, t, v, tb):
+        """Cleanup on close."""
+        self.close()
+
     # deprecated:
     #############
 

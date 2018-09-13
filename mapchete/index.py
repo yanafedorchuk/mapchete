@@ -77,25 +77,33 @@ def zoom_index_gen(
                     driver="GeoJSON",
                     out_path=_index_file_path(out_dir, zoom, "geojson"),
                     crs=mp.config.output_pyramid.crs,
-                    fieldname=fieldname))
+                    fieldname=fieldname
+                )
+            )
         if gpkg:
             index_writers.append(
                 VectorFileWriter(
                     driver="GPKG",
                     out_path=_index_file_path(out_dir, zoom, "gpkg"),
                     crs=mp.config.output_pyramid.crs,
-                    fieldname=fieldname))
+                    fieldname=fieldname
+                )
+            )
         if shapefile:
             index_writers.append(
                 VectorFileWriter(
                     driver="ESRI Shapefile",
                     out_path=_index_file_path(out_dir, zoom, "shp"),
                     crs=mp.config.output_pyramid.crs,
-                    fieldname=fieldname))
+                    fieldname=fieldname
+                )
+            )
         if txt:
             index_writers.append(
                 TextFileWriter(
-                    out_path=_index_file_path(out_dir, zoom, "txt")))
+                    out_path=_index_file_path(out_dir, zoom, "txt")
+                )
+            )
 
         logger.debug(index_writers)
 
@@ -107,7 +115,8 @@ def zoom_index_gen(
             # generate tile_path depending on basepath & for_gdal option
             tile_path = _tile_path(
                 orig_path=mp.config.output.get_path(tile),
-                basepath=basepath, for_gdal=for_gdal
+                basepath=basepath,
+                for_gdal=for_gdal
             )
             logger.debug(tile_path)
 
@@ -172,7 +181,12 @@ class VectorFileWriter():
         schema = deepcopy(spatial_schema)
         schema["properties"][fieldname] = "str:254"
         self.file_obj = fiona.open(
-            self.path, "w", driver=self.driver, crs=crs, schema=schema)
+            self.path,
+            "w",
+            driver=self.driver,
+            crs=crs,
+            schema=schema
+        )
         self.file_obj.writerecords(self.existing.values())
 
     def __repr__(self):
@@ -189,7 +203,9 @@ class VectorFileWriter():
                 "zoom": str(tile.zoom),
                 "row": str(tile.row),
                 "col": str(tile.col),
-                self.fieldname: path}})
+                self.fieldname: path
+            }
+        })
         self.new_entries += 1
 
     def entry_exists(self, tile=None, path=None):
@@ -219,6 +235,43 @@ class TextFileWriter():
 
     def __repr__(self):
         return "TextFileWriter(%s)" % self.path
+
+    def write(self, tile, path):
+        logger.debug("write %s to %s", path, self)
+        if self.entry_exists(path=path):
+            return
+        self.file_obj.write(path + "\n")
+        self.new_entries += 1
+
+    def entry_exists(self, tile=None, path=None):
+        exists = path + "\n" in self.existing
+        logger.debug("%s exists: %s", tile, exists)
+        return exists
+
+    def close(self):
+        logger.debug("%s new entries in %s", self.new_entries, self)
+        self.file_obj.close()
+
+
+class VRTFileWriter():
+    """Writes tile paths into text file."""
+    def __init__(self, out_path=None):
+        self.path = out_path
+        logger.debug("initialize VRT writer")
+        if os.path.isfile(self.path):
+            pass
+            # TODO
+            # with open(self.path) as src:
+            #     self.existing = [l for l in src]
+        else:
+            self.existing = []
+        self.new_entries = 0
+        self.file_obj = open(self.path, "w")
+        for l in self.existing:
+            self.file_obj.write(l)
+
+    def __repr__(self):
+        return "VRTFileWriter(%s)" % self.path
 
     def write(self, tile, path):
         logger.debug("write %s to %s", path, self)

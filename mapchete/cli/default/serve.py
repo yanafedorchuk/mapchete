@@ -8,7 +8,7 @@ import os
 import pkgutil
 from rasterio.io import MemoryFile
 import six
-from flask import (Flask, send_file, make_response, render_template_string, abort, jsonify)
+from flask import Flask, send_file, make_response, render_template_string, abort, jsonify
 
 import mapchete
 from mapchete.cli import utils
